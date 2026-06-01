@@ -1,0 +1,438 @@
+name: Build Kings Lite APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Generate Android project
+        run: |
+          set -euxo pipefail
+          mkdir -p app/src/main/java/com/benjaneson/tigrisai app/src/main/assets app/src/main/res/values app/src/main/res/drawable
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name='KingsOfTheTwoRiversLite'
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+
+          android {
+              namespace 'com.benjaneson.tigrisai'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.benjaneson.tigrisai'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 8
+                  versionName '1.8-lite'
+              }
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application android:theme="@style/AppTheme" android:label="Kings of the Two Rivers" android:icon="@drawable/ic_launcher" android:allowBackup="false" android:supportsRtl="true">
+                  <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+
+          EOF
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:windowNoTitle">true</item>
+                  <item name="android:windowActionBar">false</item>
+                  <item name="android:fontFamily">serif</item>
+                  <item name="android:colorAccent">#7b4f25</item>
+              </style>
+          </resources>
+
+          EOF
+          cat > app/src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#3f2917" android:pathData="M8,8h92a8,8 0,0 1,8 8v76a8,8 0,0 1,-8 8H8a8,8 0,0 1,-8 -8V16a8,8 0,0 1,8 -8z"/>
+              <path android:strokeColor="#d7b354" android:strokeWidth="4" android:fillColor="#00000000" android:pathData="M10,10h88a6,6 0,0 1,6 6v76a6,6 0,0 1,-6 6H10a6,6 0,0 1,-6 -6V16a6,6 0,0 1,6 -6z"/>
+              <path android:strokeColor="#67a9d9" android:strokeWidth="10" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M25,14 C35,24 24,36 35,49 C45,61 31,73 43,91"/>
+              <path android:strokeColor="#67a9d9" android:strokeWidth="10" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M83,14 C72,29 88,41 74,55 C61,68 82,78 69,94"/>
+              <path android:fillColor="#d7b354" android:pathData="M30,72h48v12h-48z M36,58h36v14h-36z M43,45h22v13h-22z M54,27l14,18h-28z"/>
+              <path android:strokeColor="#5b3a17" android:strokeWidth="2" android:fillColor="#00000000" android:pathData="M30,72h48v12h-48z M36,58h36v14h-36z M43,45h22v13h-22z M54,27l14,18h-28z"/>
+          </vector>
+          EOF
+          cat > app/src/main/java/com/benjaneson/tigrisai/MainActivity.java <<'EOF'
+          package com.benjaneson.tigrisai;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              @Override public void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  webView = new WebView(this);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setBuiltInZoomControls(false);
+                  s.setDisplayZoomControls(false);
+                  webView.setWebChromeClient(new WebChromeClient());
+                  webView.setWebViewClient(new WebViewClient());
+                  setContentView(webView);
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+              @Override public void onBackPressed() {
+                  if (webView != null && webView.canGoBack()) webView.goBack();
+                  else super.onBackPressed();
+              }
+          }
+
+          EOF
+          cat > app/src/main/assets/index.html <<'EOF'
+          <!doctype html>
+          <html>
+          <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+          <title>Kings of the Two Rivers Lite</title>
+          <style>
+            :root{--bg:#f7efd9;--ink:#1e1a14;--panel:#fff8e6;--line:#8d6d3e;--accent:#79532b;--gold:#d7b354;}
+            html,body{margin:0;height:100%;font-family:'Trebuchet MS',Verdana,system-ui,sans-serif;background:linear-gradient(#f3e8c8,#e8d7af);color:var(--ink)}
+            body{display:flex;flex-direction:column;overflow:hidden}
+            header{padding:10px 12px;background:linear-gradient(180deg,#573921,#3f2917);color:#fff;box-shadow:0 3px 8px #0006;border-bottom:2px solid #c9a75c}
+            header h1{font-size:19px;margin:0;font-family:Georgia,'Palatino Linotype','Book Antiqua',serif;letter-spacing:.02em} header .small{font-size:11px;opacity:.86;line-height:1.3}
+            #setup{padding:12px;overflow:auto;flex:1}.card{background:var(--panel);border:1px solid #d2bb83;border-radius:14px;padding:12px;margin:10px 0;box-shadow:0 1px 3px #0002}
+            .card h2{font-size:15px;margin:0 0 8px;color:#4b301c}.card p{margin:4px 0 8px}.note{font-size:12px;line-height:1.4}.muted{opacity:.78}.tiny{font-size:11px;line-height:1.25}
+            label{display:block;margin:9px 0 4px;font-weight:750} select,button,input{font-size:16px} select{width:100%;padding:8px;border-radius:8px;border:1px solid #b69a62;background:white}
+            button{border:0;border-radius:10px;padding:9px 12px;background:#7b4f25;color:#fff;font-weight:800;box-shadow:0 2px 4px #0004}button.secondary{background:#445}button.danger{background:#8b2d2d}
+            .check{display:grid;grid-template-columns:32px 1fr;gap:8px;align-items:start;margin:10px 0;padding:8px;border:1px solid #ead9aa;border-radius:10px;background:#fffdf4}.check input{width:24px;height:24px}.check b{display:block}.check span{font-size:12px;line-height:1.25;opacity:.82}
+            .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.wide{grid-column:1/3}
+            #game{display:none;flex:1;min-height:0;flex-direction:column}#topbar{padding:6px 8px;background:#fff8e6;border-bottom:1px solid #d2bb83;font-size:12px;line-height:1.35;max-height:92px;overflow:auto}
+            #canvasWrap{position:relative;flex:1;min-height:0;background:#d7c18a;display:flex;align-items:center;justify-content:center;overflow:hidden}canvas{touch-action:manipulation;max-width:100%;max-height:100%}
+            #legend{padding:4px 7px;background:#fdf2cf;border-top:1px solid #d2bb83;border-bottom:1px solid #d2bb83;font-size:11px;line-height:1.25;max-height:58px;overflow:auto}
+            #eventBox{padding:6px 8px;background:#fff4d3;border-bottom:1px solid #d2bb83;font-size:12px;line-height:1.35;min-height:22px;color:#4a3018}
+            .pill{display:inline-block;margin:2px 3px 2px 0;padding:2px 6px;border-radius:999px;border:1px solid #ad9358;background:#fffaf0;white-space:nowrap}.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:3px}.sig{font-weight:900;font-size:13px;margin-right:2px}
+            #controls{background:#fff8e6;border-top:1px solid #d2bb83;padding:6px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px}#controls select{font-size:13px;padding:7px}#controls button{font-size:14px;padding:8px}
+            #recyclePanel{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;align-items:end;background:#fffdf4;border:1px solid #ead9aa;border-radius:10px;padding:6px}.recSlot{display:flex;flex-direction:column;font-size:11px}.recSlot input{width:100%;box-sizing:border-box;padding:5px;border-radius:7px;border:1px solid #b69a62}
+            #supportDrawer{display:none;background:#fff7df;border-top:2px solid #7b4f25;padding:8px;box-shadow:0 -2px 8px #0003;font-size:13px}.supportBtns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}#supportDrawer input[type=range]{width:100%}#supportText{font-weight:750;color:#4b301c}
+            #log{height:104px;overflow:auto;background:#21180f;color:#f8eac4;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;padding:6px;white-space:pre-wrap}
+          </style>
+          </head>
+          <body>
+          <header><h1>Kings of the Two Rivers Lite</h1><div class="small">Small GitHub workflow build: no embedded board-photo assets, accurate coordinate-based rivers and Shedu logic.</div></header>
+          <section id="setup">
+            <div class="card">
+              <h2>Players and AI</h2>
+              <label for="aiCount">Automated opponents</label>
+              <select id="aiCount"><option>1</option><option>2</option><option selected>3</option></select>
+              <label for="aiLevel">Automated opponent level</label>
+              <select id="aiLevel"><option value="easy">Easy — mostly legal point-scoring moves</option><option value="regular" selected>Regular — avoids helping opponents</option><option value="hard">Hard — balances colours and attacks only when favoured</option></select>
+            </div>
+            <div class="card">
+              <h2>Board and separate rule toggles</h2>
+              <label for="boardSide">Board layout</label>
+              <select id="boardSide"><option value="standard" selected>Standard board — 10 Shedu start temples, 4 outlined</option><option value="advanced">Advanced board — 14 Shedu start temples, 6 outlined</option></select>
+              <div class="check"><input id="ruleBuildings" type="checkbox"><div><b>Civilisation buildings</b><span>Palace, Library, Granary, and Market Hall as a separate advanced-rule module.</span></div></div>
+              <div class="check"><input id="ruleEnglish" type="checkbox"><div><b>English variant</b><span>Conflict support is restricted so extra tiles must be able to change the result.</span></div></div>
+              <div class="check"><input id="ruleWonder" type="checkbox"><div><b>Wonder variant</b><span>Allows the five-tile cross wonder and the king's end-turn wild point.</span></div></div>
+              <div class="check"><input id="showCoords" type="checkbox" checked><div><b>Show board coordinates</b><span>Adds A1–P11 helper labels for easier move tracking and discussion. This is only an in-app aid; the physical board itself is not meant to have printed coordinates.</span></div></div>
+              <button onclick="startGame()">Start game</button>
+            </div>
+            <div class="card note"><b>Touch controls:</b> tap a board square, choose an action and colour/sphere, then press <b>Do action</b>. You receive two actions per turn. Tile and leader labels use full names instead of ambiguous single letters: Black/settlement/king, Red/temple/priest, Blue/farm/farmer, Green/market/trader.</div>
+            <div class="card tiny"><b>Board data note:</b> this lite build uses explicit 16×11 coordinate lists for river spaces, Shedu setup spaces, and outlined Shedu spaces for both board sides. It does not embed board-photo files, so the workflow stays small.</div>
+          </section>
+          <section id="game">
+            <div id="topbar"></div>
+            <div id="canvasWrap"><canvas id="board" width="1280" height="880"></canvas></div>
+            <div id="legend"></div>
+            <div id="eventBox">AI and conflict events will appear here.</div>
+            <div id="controls">
+              <select id="action" onchange="refreshEligibilityMessage()"><option value="tile">Place civilisation tile</option><option value="leader">Place/move leader</option><option value="withdraw">Withdraw selected leader</option><option value="cat">Play catastrophe tile</option><option value="recycleCustom">Recycle chosen tile mix</option><option value="replaceColor">Recycle all tiles of chosen colour</option><option value="replaceAll">Recycle entire hand</option></select>
+              <select id="color" onchange="refreshEligibilityMessage()"><option value="0">Black: settlement tile / king leader / bricks VP</option><option value="1">Red: temple tile / priest leader / amulets VP</option><option value="2">Blue: farm tile / farmer leader / crops VP</option><option value="3">Green: market tile / trader leader / goods VP</option></select>
+              <div id="recyclePanel" class="wide"><div class="recSlot"><span>Black</span><input id="rec0" type="number" min="0" max="6" value="0"></div><div class="recSlot"><span>Red</span><input id="rec1" type="number" min="0" max="6" value="0"></div><div class="recSlot"><span>Blue</span><input id="rec2" type="number" min="0" max="6" value="0"></div><div class="recSlot"><span>Green</span><input id="rec3" type="number" min="0" max="6" value="0"></div></div>
+              <button onclick="doHumanAction()">Do selected action</button><button class="secondary" onclick="finishHumanTurn()">Finish turn</button>
+              <button class="secondary" onclick="saveGame()">Save</button><button class="secondary" onclick="loadGame()">Load</button>
+              <button class="danger wide" onclick="if(confirm('Start over?')) location.reload()">New game</button>
+            </div>
+            <div id="supportDrawer"><div id="supportText"></div><div id="supportHint" class="tiny"></div><input id="supportRange" type="range" min="0" max="0" value="0" oninput="updateSupportReadout()"><div id="supportValue" class="tiny"></div><div class="supportBtns"><button onclick="commitSupportChoice()">Commit support</button><button class="secondary" onclick="commitSupportChoice(0)">Commit none</button></div></div>
+            <div id="log"></div>
+          </section>
+          <script>
+          'use strict';
+          const W=16,H=11, BLACK=0, RED=1, BLUE=2, GREEN=3;
+          const CNAME=['Black','Red','Blue','Green'];
+          const SHORT=['Bk','Rd','Bu','Gn'];
+          const TILE=['settlement','temple','farm','market'];
+          const TILE_SHORT=['Set','Tmp','Frm','Mkt'];
+          const LEADER=['king','priest','farmer','trader'];
+          const LEADER_SHORT=['King','Priest','Farmer','Trader'];
+          const VP=['bricks','amulets','crops','goods'];
+          const HEX=['#1f1f1f','#b74336','#2d88c4','#2e9655'];
+          const TEXTHEX=['#ffffff','#ffffff','#ffffff','#ffffff'];
+          const DYNASTY=['You','Bull AI','Pot AI','Lion AI'];
+          const SIGIL=['YOU','BULL','POT','LION'];
+          const MARK=['I','II','III','IV'];
+          const MARK_FILL=['#fff6a5','#ffffff','#ffffff','#ffffff'];
+          const BUILDING=['Palace','Library','Granary','Market Hall'];
+          const MONUMENTS=[[BLUE,RED],[GREEN,BLACK],[BLUE,BLACK],[GREEN,BLUE],[RED,GREEN],[RED,BLACK]];
+          const BOARD={
+           standard:{
+            shedu:[[10,0],[1,1],[15,1],[5,2],[13,4],[8,6],[1,7],[14,8],[5,9],[10,10]],
+            special:[[1,1],[15,1],[1,7],[14,8]],
+            river:[[4,0],[5,0],[6,0],[7,0],[8,0],[12,0],[4,1],[12,1],[3,2],[4,2],[12,2],[13,2],[0,3],[1,3],[2,3],[3,3],[13,3],[14,3],[15,3],[14,4],[15,4],[14,5],[0,6],[1,6],[2,6],[3,6],[12,6],[13,6],[14,6],[4,7],[5,7],[6,7],[12,7],[6,8],[7,8],[8,8],[9,8],[10,8],[11,8],[12,8]]
+           },
+           advanced:{
+            shedu:[[4,0],[9,0],[14,1],[1,2],[6,3],[11,3],[3,5],[15,5],[0,7],[7,7],[12,7],[4,9],[9,10],[14,10]],
+            special:[[1,2],[15,5],[0,7],[4,9],[9,10],[14,10]],
+            river:[[2,0],[3,0],[15,0],[2,1],[3,1],[15,1],[2,2],[3,2],[15,2],[2,3],[13,3],[14,3],[15,3],[2,4],[12,4],[2,5],[12,5],[2,6],[3,6],[12,6],[13,6],[4,7],[5,7],[13,7],[5,8],[6,8],[13,8],[6,9],[7,9],[8,9],[9,9],[10,9],[11,9],[12,9],[13,9],[6,10]]
+           }
+          };
+          let G=null, selected={x:0,y:0}, statusFlash='Ready.', aiBusy=false, pendingSupport=null;
+          const AI_PACE={plan:780,between:960,end:760};
+          function key(x,y){return x+','+y} function inside(x,y){return x>=0&&x<W&&y>=0&&y<H}
+          function eachCell(fn){for(let y=0;y<H;y++)for(let x=0;x<W;x++)fn(G.board[y][x],x,y)}
+          function cell(x,y){return G.board[y][x]} function neighbors(x,y){return [[x+1,y],[x-1,y],[x,y+1],[x,y-1]].filter(p=>inside(p[0],p[1]));}
+          function emptyCell(c){return !c.cat&&c.tile===null&&!c.face&&!c.wonder&&!c.leader&&!c.mon}
+          function hasNode(c){return c.cat?false:!!(c.tile!==null||c.face||c.wonder||c.leader||c.mon)}
+          function faceTemple(c){return c.tile===RED&&!c.face&&!c.wonder&&!c.cat}
+          function handText(p){return CNAME.map((n,i)=>SHORT[i]+' '+TILE[i]+': '+G.players[p].hand[i]).join(' | ')}
+          function log(s){G.log.unshift(s); if(G.log.length>80)G.log.length=80; document.getElementById('log').textContent=G.log.join('\n');}
+          function flash(s){statusFlash=s; let box=document.getElementById('eventBox'); if(box) box.textContent=s;}
+          function startGame(){
+           const aiCount=+document.getElementById('aiCount').value;
+           G={players:[],turn:0,actions:2,aiCount,aiLevel:document.getElementById('aiLevel').value,settings:{buildings:document.getElementById('ruleBuildings').checked,advanced:document.getElementById('boardSide').value==='advanced',english:document.getElementById('ruleEnglish').checked,wonder:document.getElementById('ruleWonder').checked,showCoords:document.getElementById('showCoords').checked},bag:[30,57,36,30],board:[],log:[],over:false,buildingsOn:[null,null,null,null],monuments:MONUMENTS.map((m,i)=>({id:i,colors:m,used:false})),lastUnion:null};
+           const def=G.settings.advanced?BOARD.advanced:BOARD.standard;
+           const river=new Set(def.river.map(p=>key(p[0],p[1]))), shedu=new Set(def.shedu.map(p=>key(p[0],p[1]))), special=new Set(def.special.map(p=>key(p[0],p[1])));
+           for(let y=0;y<H;y++){G.board[y]=[];for(let x=0;x<W;x++)G.board[y][x]={river:river.has(key(x,y)),shedu:shedu.has(key(x,y)),special:special.has(key(x,y)),tile:null,face:false,wonder:false,cat:false,leader:null,treasure:false,mon:null,building:null};}
+           for(const [x,y] of def.shedu){let c=cell(x,y);c.tile=RED;c.treasure=true;G.bag[RED]--;}
+           for(let i=0;i<1+aiCount;i++)G.players.push({name:i?DYNASTY[i]:'You',ai:i>0,vp:[0,0,0,0],treasures:0,hand:[0,0,0,0],cat:2,leaders:[null,null,null,null]});
+           for(let p=0;p<G.players.length;p++)drawTo(p,6);
+           document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='flex';
+           resizeCanvas(); log('Game started on '+(G.settings.advanced?'advanced':'standard')+' board with '+(G.settings.advanced?14:10)+' Shedu start temples and '+(G.settings.advanced?6:4)+' outlined Shedu spaces.'); log('AI level: '+G.aiLevel+'. Enabled toggles: '+optionSummary()+'.'); render(); flash('Game ready. Lite build uses coordinate-based board art; no board-photo images are embedded.'); if(G.players[G.turn].ai) setTimeout(aiTurn,650);
+          }
+          function drawOne(){let total=G.bag.reduce((a,b)=>a+b,0); if(total<=0){G.over=true; return -1;} let r=Math.floor(Math.random()*total); for(let i=0;i<4;i++){if(r<G.bag[i]){G.bag[i]--; return i;} r-=G.bag[i];} return -1;}
+          function drawTo(p,n){while(G.players[p].hand.reduce((a,b)=>a+b,0)<n){let t=drawOne(); if(t<0){G.over=true;break;} G.players[p].hand[t]++;}}
+          function canAfford(p,c){return G.players[p].hand[c]>0}
+          function comps(block){let seen=new Set(), res=[]; eachCell((c,x,y)=>{let k=key(x,y); if(seen.has(k)||!hasNode(c)||k===block)return; let q=[[x,y]], comp=[], leaders=[]; seen.add(k); while(q.length){let [cx,cy]=q.pop(), cc=cell(cx,cy); comp.push([cx,cy]); if(cc.leader)leaders.push({x:cx,y:cy,p:cc.leader.p,color:cc.leader.color}); for(const [nx,ny] of neighbors(cx,cy)){let nk=key(nx,ny); if(nk===block||seen.has(nk)||!hasNode(cell(nx,ny)))continue; seen.add(nk); q.push([nx,ny]);}} res.push({cells:comp,leaders});}); return res;}
+          function compAt(x,y,block){return comps(block).find(co=>co.cells.some(p=>p[0]===x&&p[1]===y));}
+          function compIdMap(block){let map=new Map(); comps(block).forEach((co,i)=>co.cells.forEach(p=>map.set(key(p[0],p[1]),i))); return map;}
+          function neighborKingdomCount(x,y){let cm=comps().filter(c=>c.leaders.length); let map=new Map(); cm.forEach((co,i)=>co.cells.forEach(p=>map.set(key(p[0],p[1]),i))); let s=new Set(); for(const [nx,ny] of neighbors(x,y)){let id=map.get(key(nx,ny)); if(id!==undefined)s.add(id);} return s.size;}
+          function legalLeader(p,color,x,y){let c=cell(x,y); if(!emptyCell(c)||c.river)return false; let adjTemple=neighbors(x,y).some(([nx,ny])=>faceTemple(cell(nx,ny))); if(!adjTemple)return false; return neighborKingdomCount(x,y)<=1;}
+          async function placeLeader(p,color,x,y){if(!legalLeader(p,color,x,y))return 'Illegal leader placement.'; let old=G.players[p].leaders[color]; if(old){cell(old.x,old.y).leader=null;} let c=cell(x,y); c.leader={p,color}; G.players[p].leaders[color]={x,y}; log(G.players[p].name+' placed '+CNAME[color]+' '+LEADER[color]+' at '+coord(x,y)+'.'); await resolveRevolt(p,color,x,y); treasureSweep(); spendAction(); return null;}
+          function legalTile(p,color,x,y){let c=cell(x,y); if(!emptyCell(c))return false; if(color===BLUE?!c.river:c.river)return false; if(!canAfford(p,color))return false; return neighborKingdomCount(x,y)<=2;}
+          async function placeTile(p,color,x,y){if(!legalTile(p,color,x,y))return 'Illegal tile placement.'; let unite=neighborKingdomCount(x,y)===2; let c=cell(x,y); c.tile=color; G.players[p].hand[color]--; log(G.players[p].name+' placed '+CNAME[color]+' '+TILE[color]+' at '+coord(x,y)+'.'); if(unite){G.lastUnion={x,y,color}; await resolveWars(p,x,y,color);} else {awardTilePoint(p,x,y,color); if(G.settings.buildings) placeBuildingIfLine(color,x,y,p); maybeWonderOrMonument(p,x,y,color);} treasureSweep(); spendAction(); return null;}
+          function awardTilePoint(active,x,y,color){let co=compAt(x,y); if(!co||!co.leaders.length)return; let holder=co.leaders.find(l=>l.color===color)||co.leaders.find(l=>l.color===BLACK); if(!holder)return; let amount=1; if(G.settings.buildings && co.cells.some(([cx,cy])=>cell(cx,cy).building===color))amount=2; G.players[holder.p].vp[color]+=amount; log(G.players[holder.p].name+' gains '+amount+' '+VP[color]+'.');}
+          function spendAction(){if(G.over){gameOver();return;} if(!G.players[G.turn].ai){G.actions--; if(G.actions<=0)endTurn(); else render();}}
+          function endTurn(){scoreEndOfTurn(G.turn); drawTo(G.turn,6); for(let p=0;p<G.players.length;p++)drawTo(p,6); if(boardTreasures()<=2||G.over){gameOver();return;} G.turn=(G.turn+1)%G.players.length; G.actions=2; render(); if(G.players[G.turn].ai)setTimeout(aiTurn,250);}
+          function boardTreasures(){let n=0; eachCell(c=>{if(c.treasure)n++;}); return n;}
+          async function resolveRevolt(attacker,color,x,y){let co=compAt(x,y); if(!co)return; let rivals=co.leaders.filter(l=>l.color===color); if(rivals.length<2)return; let def=rivals.find(l=>!(l.x===x&&l.y===y)); if(!def)return; let aBase=neighbors(x,y).filter(([nx,ny])=>faceTemple(cell(nx,ny))).length; let dBase=neighbors(def.x,def.y).filter(([nx,ny])=>faceTemple(cell(nx,ny))).length; let aSup=await commit(attacker,RED,aBase,dBase,true,true); let dSup=await commit(def.p,RED,dBase,aBase+aSup,true,false); let winner=(aBase+aSup>dBase+dSup)?attacker:def.p; let loser=(winner===attacker)?def:{p:attacker,x,y,color}; G.players[winner].vp[RED]++; removeLeader(loser.x,loser.y); log('Revolt: '+G.players[winner].name+' wins and gains 1 amulet.');}
+          async function resolveWars(active,ux,uy,ucolor){let safety=0; while(safety++<8){let co=compAt(ux,uy); if(!co)break; let conflicts=[]; for(let color=0;color<4;color++){let ls=co.leaders.filter(l=>l.color===color); if(ls.length>1)conflicts.push({color,leaders:ls});} if(!conflicts.length)break; let conflict=conflicts[0], color=conflict.color, ls=conflict.leaders; let attacker=ls.find(l=>l.p===active)||ls.sort((a,b)=>((a.p-active+G.players.length)%G.players.length)-((b.p-active+G.players.length)%G.players.length))[0]; let defender=ls.find(l=>l!==attacker); let block=key(ux,uy); let aBase=countSupport(attacker.x,attacker.y,color,block), dBase=countSupport(defender.x,defender.y,color,block); let aSup=await commit(attacker.p,color,aBase,dBase,false,true); let dSup=await commit(defender.p,color,dBase,aBase+aSup,false,false); let aTotal=aBase+aSup,dTotal=dBase+dSup; let winner=aTotal>dTotal?attacker:defender, loser=aTotal>dTotal?defender:attacker; let removed=removeWarLoser(loser.x,loser.y,color,block); G.players[winner.p].vp[color]+=1+removed; log('War over '+CNAME[color]+': '+G.players[winner.p].name+' wins '+(1+removed)+' '+VP[color]+'.');}
+          }
+          function countSupport(x,y,color,block){let seen=new Set([block]), q=[[x,y]], count=0; while(q.length){let [cx,cy]=q.pop(), cc=cell(cx,cy); if(cc.tile===color&&!cc.face&&!cc.wonder)count++; for(const [nx,ny] of neighbors(cx,cy)){let k=key(nx,ny); if(seen.has(k)||!hasNode(cell(nx,ny)))continue; seen.add(k); q.push([nx,ny]);}} return count;}
+          function removeWarLoser(x,y,color,block){removeLeader(x,y); let seen=new Set([block]), q=[[x,y]], victims=[]; while(q.length){let [cx,cy]=q.pop(), cc=cell(cx,cy); if(cc.tile===color&&!cc.face&&!cc.wonder&&!cc.building){ if(color!==RED||(!cc.treasure&&!neighbors(cx,cy).some(([nx,ny])=>cell(nx,ny).leader&&cell(nx,ny).leader.color!==RED)))victims.push([cx,cy]); }
+           for(const [nx,ny] of neighbors(cx,cy)){let k=key(nx,ny); if(seen.has(k)||!hasNode(cell(nx,ny)))continue; seen.add(k); q.push([nx,ny]);}}
+           for(const [vx,vy] of victims){let c=cell(vx,vy); c.tile=null; c.face=false; c.treasure=false; c.building=null;} evictUnsupportedLeaders(); return victims.length;}
+          function removeLeader(x,y){let c=cell(x,y); if(c.leader){G.players[c.leader.p].leaders[c.leader.color]=null; c.leader=null;}}
+          function evictUnsupportedLeaders(){eachCell((c,x,y)=>{if(c.leader&&!neighbors(x,y).some(([nx,ny])=>faceTemple(cell(nx,ny)))){log(G.players[c.leader.p].name+' loses unsupported '+LEADER[c.leader.color]+'.'); removeLeader(x,y);}});}
+          async function commit(p,color,base,opponent,isRevolt,isAttacker){let max=G.players[p].hand[color]; let needed=isAttacker?opponent+1-base:opponent-base; if(!isAttacker&&needed<0)needed=0; let suggested=Math.max(0,Math.min(max,needed)); if(G.settings.english){ if(isAttacker && needed>max) suggested=0; if(!isAttacker && needed>max) suggested=0; }
+           let n=0;
+           if(!G.players[p].ai){n=await requestSupport(p,color,base,opponent,isRevolt,isAttacker,suggested,max,needed);}
+           else {let level=G.aiLevel; if(level==='easy')n=Math.min(max,Math.random()<.45?1:0); else n=suggested; if(level==='hard'&&needed>0&&needed<=max)n=needed; if(G.settings.english){ if(isAttacker && base+n<=opponent)n=0; if(!isAttacker && base+n!==opponent)n=0; }}
+           G.players[p].hand[color]-=n; if(n)log(G.players[p].name+' commits '+n+' '+CNAME[color]+'.'); else log(G.players[p].name+' commits no '+CNAME[color]+' support.'); return n;}
+          function requestSupport(p,color,base,opponent,isRevolt,isAttacker,suggested,max,needed){
+           return new Promise(resolve=>{pendingSupport={p,color,base,opponent,isRevolt,isAttacker,suggested,max,needed,resolve}; let drawer=document.getElementById('supportDrawer'), rng=document.getElementById('supportRange'); drawer.style.display='block'; rng.min=0; rng.max=max; rng.value=suggested; updateSupportReadout(); flash((isRevolt?'Revolt':'War')+' support needed: choose '+CNAME[color]+' tile support for '+G.players[p].name+'.'); render();});
+          }
+          function updateSupportReadout(){if(!pendingSupport)return; let n=+document.getElementById('supportRange').value, s=pendingSupport, rule=''; if(G.settings.english){ if(s.isAttacker) rule='English variant: attacker may commit 0, or enough to exceed the defender.'; else rule='English variant: defender may commit 0, or exactly enough to tie.';} else rule='Commit any number from your hand.'; document.getElementById('supportText').textContent=G.players[s.p].name+' support with '+CNAME[s.color]+' tiles: board '+s.base+', opposing strength '+s.opponent+', in hand '+s.max+'.'; document.getElementById('supportHint').textContent=rule; document.getElementById('supportValue').textContent='Selected support: '+n+' tile(s). Suggested: '+s.suggested+'.';}
+          function commitSupportChoice(force){if(!pendingSupport)return; let s=pendingSupport, n=(force===0)?0:+document.getElementById('supportRange').value; n=Math.max(0,Math.min(s.max,n)); if(G.settings.english&&n>0){ if(s.isAttacker && s.base+n<=s.opponent){flash('Ineligible support amount: attacker must exceed the current defender strength, or commit none.'); return;} if(!s.isAttacker && s.base+n!==s.opponent){flash('Ineligible support amount: defender must commit exactly enough to tie, or commit none.'); return;} } document.getElementById('supportDrawer').style.display='none'; pendingSupport=null; flash(G.players[s.p].name+' commits '+n+' '+CNAME[s.color]+' support tile(s).'); s.resolve(n);}
+          
+          function maybeWonderOrMonument(p,x,y,color){ if(G.settings.buildings) placeBuildingIfLine(color,x,y,p); if(G.settings.wonder && findCross(x,y,color)){let build=G.players[p].ai?G.aiLevel!=='easy':confirm('Build the wonder from this 5-tile cross?'); if(build){buildWonder(findCross(x,y,color));return;}} let sqs=findSquares(x,y,color); if(sqs.length){let opts=G.monuments.filter(m=>!m.used&&m.colors.includes(color)); if(opts.length){let build=G.players[p].ai?true:confirm('Build a monument from the 2x2 '+CNAME[color]+' square?'); if(build){let m=opts[0]; if(!G.players[p].ai&&opts.length>1){let ans=prompt('Choose monument other colour: '+opts.map((o,i)=>i+': '+o.colors.map(c=>CNAME[c]).join('/')).join(', '),'0'); m=opts[Math.max(0,Math.min(opts.length-1,parseInt(ans||'0',10)||0))];} buildMonument(sqs[0],m);}}}}
+          function findSquares(x,y,color){let a=[]; for(let dx=-1;dx<=0;dx++)for(let dy=-1;dy<=0;dy++){let sx=x+dx,sy=y+dy;if(sx<0||sy<0||sx>=W-1||sy>=H-1)continue; let ps=[[sx,sy],[sx+1,sy],[sx,sy+1],[sx+1,sy+1]]; if(ps.every(([cx,cy])=>{let c=cell(cx,cy); return c.tile===color&&!c.face&&!c.wonder&&!c.cat&&!c.mon;}))a.push(ps);} return a;}
+          function findCross(x,y,color){let ps=[[x,y],[x+1,y],[x-1,y],[x,y+1],[x,y-1]]; if(ps.every(([cx,cy])=>inside(cx,cy)&&cell(cx,cy).tile===color&&!cell(cx,cy).face&&!cell(cx,cy).wonder&&!cell(cx,cy).cat&&!cell(cx,cy).mon))return ps; return null;}
+          function buildMonument(ps,m){m.used=true; let id='M'+m.id; for(const [x,y] of ps){let c=cell(x,y); c.face=true; c.mon=id; if(c.building!==null){G.buildingsOn[c.building]=null;c.building=null;}} cell(ps[0][0],ps[0][1]).monumentColors=m.colors; log('Monument built: '+m.colors.map(c=>CNAME[c]).join('/')+'.'); evictUnsupportedLeaders();}
+          function buildWonder(ps){for(const [x,y] of ps){let c=cell(x,y); if(c.building!==null){G.buildingsOn[c.building]=null;c.building=null;} c.tile=null;c.face=true;c.wonder=true;} log('Wonder erected.'); evictUnsupportedLeaders();}
+          function placeBuildingIfLine(color,x,y,p){let best=null; for(const dir of [[1,0],[0,1]]){let arr=[[x,y]]; for(const s of [-1,1]){let nx=x+dir[0]*s,ny=y+dir[1]*s; while(inside(nx,ny)&&cell(nx,ny).tile===color&&!cell(nx,ny).face&&!cell(nx,ny).wonder){arr.push([nx,ny]); nx+=dir[0]*s; ny+=dir[1]*s;}} if(arr.length>=3 && (!best||arr.length>best.length))best=arr;} if(!best)return; let current=G.buildingsOn[color]; let oldLen=0; if(current){oldLen=lineLenAt(color,current.x,current.y);} if(best.length>oldLen){if(current)cell(current.x,current.y).building=null; let [bx,by]=best[0]; cell(bx,by).building=color; G.buildingsOn[color]={x:bx,y:by}; log(BUILDING[color]+' placed for '+CNAME[color]+' line.');}}
+          function lineLenAt(color,x,y){let max=1; for(const dir of [[1,0],[0,1]]){let n=1; for(const s of [-1,1]){let nx=x+dir[0]*s,ny=y+dir[1]*s; while(inside(nx,ny)&&cell(nx,ny).tile===color&&!cell(nx,ny).face&&!cell(nx,ny).wonder){n++;nx+=dir[0]*s;ny+=dir[1]*s;}} max=Math.max(max,n);} return max;}
+          function treasureSweep(){let cps=comps().filter(co=>co.leaders.length); for(const co of cps){let treasures=co.cells.filter(([x,y])=>cell(x,y).treasure); if(treasures.length<=1)continue; let trader=co.leaders.find(l=>l.color===GREEN); if(!trader)continue; let take=treasures.length-1; treasures.sort((a,b)=>{let sa=cell(a[0],a[1]).special?0:1, sb=cell(b[0],b[1]).special?0:1; return sa-sb || a[1]-b[1] || a[0]-b[0];}); for(let i=0;i<take;i++){cell(treasures[i][0],treasures[i][1]).treasure=false; G.players[trader.p].treasures++; log(G.players[trader.p].name+' takes a treasure.');}}}
+          function playCat(p,x,y){let c=cell(x,y); let bad=playCatCheck(p,x,y); if(bad)return bad; c.cat=true; c.tile=null;c.face=false;c.leader=null;c.treasure=false; G.players[p].cat--; log(G.players[p].name+' plays catastrophe at '+coord(x,y)+'.'); evictUnsupportedLeaders(); spendAction(); return null;}
+          function replaceTiles(p,color,all){let n=0; if(all){n=G.players[p].hand.reduce((a,b)=>a+b,0); G.players[p].hand=[0,0,0,0];} else {n=G.players[p].hand[color]; G.players[p].hand[color]=0;} drawTo(p,6); log(G.players[p].name+' recycles '+n+' tile(s).'); spendAction(); return null;}
+          function getRecycleCounts(){return [0,1,2,3].map(i=>Math.max(0,parseInt((document.getElementById('rec'+i)||{}).value||'0',10)||0));}
+          function replaceCustom(p,counts){let total=counts.reduce((a,b)=>a+b,0); if(total<=0)return 'Choose at least one tile to recycle.'; if(total>6)return 'You can recycle at most six tiles.'; for(let i=0;i<4;i++){if(counts[i]>G.players[p].hand[i])return 'You do not have that many '+CNAME[i]+' tiles.';} for(let i=0;i<4;i++)G.players[p].hand[i]-=counts[i]; drawTo(p,6); log(G.players[p].name+' recycles '+counts.map((n,i)=>n?CNAME[i]+' '+n:null).filter(Boolean).join(', ')+'.'); spendAction(); return null;}
+          function syncRecycleInputs(){if(!G||!document.getElementById('rec0'))return; for(let i=0;i<4;i++){let el=document.getElementById('rec'+i), max=G.players[0].hand[i]; el.max=max; if(+el.value>max)el.value=max;}}
+          function replaceCustomAi(p,counts){let err=replaceCustom(p,counts); if(err)log('AI recycle skipped: '+err); else log('AI plan: '+G.players[p].name+' recycled weak/surplus tiles.');}
+          
+          async function doHumanAction(){if(G.over||G.players[G.turn].ai||pendingSupport)return; let p=G.turn, a=action.value, color=+document.getElementById('color').value, x=selected.x, y=selected.y; let err=null; if(a==='tile')err=await placeTile(p,color,x,y); else if(a==='leader')err=await placeLeader(p,color,x,y); else if(a==='withdraw'){let c=cell(x,y); if(c.leader&&c.leader.p===p){removeLeader(x,y); log('You withdrew a leader.'); spendAction();} else err='Select one of your leaders.';} else if(a==='cat')err=playCat(p,x,y); else if(a==='recycleCustom')err=replaceCustom(p,getRecycleCounts()); else if(a==='replaceColor')err=replaceTiles(p,color,false); else if(a==='replaceAll')err=replaceTiles(p,color,true); if(err){flash(err+' '+eligibilityText());} render();}
+          function finishHumanTurn(){if(!G.players[G.turn].ai)endTurn();}
+          function aiTurn(){if(G.over||!G.players[G.turn].ai||aiBusy)return; let p=G.turn; aiBusy=true; flash(G.players[p].name+' is thinking…'); runAiStep(p,0);}
+          function runAiStep(p,step){ if(G.over||G.turn!==p){aiBusy=false; return;} if(step>=2){flash(G.players[p].name+' ends the turn.'); aiBusy=false; setTimeout(()=>endTurn(),AI_PACE.end); return;} let move=chooseAiMove(p); if(!move){move={t:'recycle',counts:recyclePlan(p).counts,v:0};} if(move.x!==undefined)selected={x:move.x,y:move.y}; render(); let dest=(move.x!==undefined&&move.y!==undefined)?(' at '+coord(move.x,move.y)):''; flash(G.players[p].name+' is considering '+moveLabel(move)+dest+'.'); setTimeout(async()=>{ flash(G.players[p].name+' executes '+moveLabel(move)+dest+'.'); if(move.t==='tile')await placeTileAi(p,move.c,move.x,move.y); else if(move.t==='leader')await placeLeaderAi(p,move.c,move.x,move.y); else if(move.t==='cat')playCatAi(p,move.x,move.y); else if(move.t==='recycle')replaceCustomAi(p,move.counts); render(); setTimeout(()=>runAiStep(p,step+1),AI_PACE.between); },AI_PACE.plan); }
+          function moveLabel(m){if(!m)return 'none'; if(m.t==='tile')return 'place '+CNAME[m.c]+' '+TILE[m.c]+' at '+coord(m.x,m.y); if(m.t==='leader')return 'place '+CNAME[m.c]+' '+LEADER[m.c]+' at '+coord(m.x,m.y); if(m.t==='cat')return 'catastrophe at '+coord(m.x,m.y); if(m.t==='recycle')return 'recycle '+m.counts.map((n,i)=>n?CNAME[i]+' '+n:null).filter(Boolean).join(', '); return m.t;}
+          function chooseAiMove(p){
+           let moves=[];
+           for(let c=0;c<4;c++){
+            if(G.players[p].hand[c]>0){for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(legalTile(p,c,x,y)){let v=evaluateTile(p,c,x,y); if(v>-30)moves.push({t:'tile',c,x,y,v});}}
+            for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(legalLeader(p,c,x,y)){let v=evaluateLeader(p,c,x,y); if(v>-30)moves.push({t:'leader',c,x,y,v});}
+           }
+           if(G.players[p].cat>0){
+            eachCell((cc,x,y)=>{let v=evaluateCat(p,x,y); if(v!==null && v>(G.aiLevel==='easy'?8:3))moves.push({t:'cat',x,y,v});});
+           }
+           let rp=recyclePlan(p); if(rp.score>(G.aiLevel==='easy'?8:2.75))moves.push({t:'recycle',counts:rp.counts,v:rp.score});
+           if(!moves.length)return null;
+           moves.sort((a,b)=>b.v-a.v);
+           if(G.aiLevel==='easy'){
+            let scoring=moves.filter(m=>m.v>2); let pool=scoring.length?scoring:moves; return pool[Math.floor(Math.random()*Math.min(pool.length,10))];
+           }
+           if(G.aiLevel==='regular'){
+            let cutoff=moves[0].v-2.25; let pool=moves.filter(m=>m.v>=cutoff).slice(0,8); return pool[Math.floor(Math.random()*pool.length)];
+           }
+           return moves[0];
+          }
+          function evaluateTile(p,c,x,y){
+           let v=0, pl=G.players[p], need=colourNeed(p,c); let beforeUnite=neighborKingdomCount(x,y)===2;
+           if(beforeUnite)v+=G.aiLevel==='hard'?1.0:0.4;
+           let tmp=cell(x,y); tmp.tile=c; let co=compAt(x,y); let holder=null;
+           if(co){
+            holder=co.leaders.find(l=>l.color===c)||co.leaders.find(l=>l.color===BLACK);
+            if(holder&&holder.p===p)v+=7+need; else if(holder&&holder.p!==p)v-=10;
+            if(co.leaders.some(l=>l.p===p&&l.color===GREEN)&&co.cells.some(([cx,cy])=>cell(cx,cy).treasure))v+=3;
+            if(co.leaders.some(l=>l.p===p))v+=Math.min(2.5,co.cells.length/10);
+            if(beforeUnite){let cf=warForecast(p,c,x,y); v+=cf;}
+           }
+           if(findSquares(x,y,c).length)v+=G.settings.buildings?5.5:4.5;
+           if(G.settings.wonder&&findCross(x,y,c))v+=6.5;
+           if(G.settings.buildings&&lineCandidateGain(c,x,y)>0)v+=2.5;
+           if(!co||!co.leaders.length)v-=2.0;
+           tmp.tile=null;
+           return v + Math.random()*0.25;
+          }
+          function evaluateLeader(p,c,x,y){
+           let v=1.2+colourNeed(p,c), old=G.players[p].leaders[c], oldCell=null;
+           if(old){oldCell=cell(old.x,old.y); oldCell.leader=null; v-=0.8;}
+           let tmp=cell(x,y); tmp.leader={p,color:c}; let co=compAt(x,y);
+           if(co){
+            let treasures=co.cells.filter(([cx,cy])=>cell(cx,cy).treasure).length;
+            if(c===GREEN)v+=treasures*4.5; else v+=treasures*0.8;
+            if(co.leaders.some(l=>l.p!==p&&l.color===c)){let odds=revoltForecast(p,c,x,y); v+=odds;}
+            if(co.leaders.some(l=>l.p===p&&l.color!==c))v+=1.5;
+            v+=Math.min(3,co.cells.length/7);
+            if(c!==BLACK && !co.leaders.some(l=>l.color===c&&l.p!==p))v+=1;
+           }
+           tmp.leader=null; if(oldCell)oldCell.leader={p,color:c};
+           return v + Math.random()*0.25;
+          }
+          function colourNeed(p,c){let v=G.players[p].vp, min=Math.min(...v); return Math.max(0,4-(v[c]-min));}
+          function lineCandidateGain(color,x,y){let best=0; for(const dir of [[1,0],[0,1]]){let n=1; for(const s of [-1,1]){let nx=x+dir[0]*s,ny=y+dir[1]*s; while(inside(nx,ny)&&cell(nx,ny).tile===color&&!cell(nx,ny).face&&!cell(nx,ny).wonder){n++; nx+=dir[0]*s; ny+=dir[1]*s;}} best=Math.max(best,n);} return best>=3?best:0;}
+          function revoltForecast(p,c,x,y){let co=compAt(x,y); if(!co)return 0; let def=co.leaders.find(l=>l.color===c&&l.p!==p); if(!def)return 0; let aBase=neighbors(x,y).filter(([nx,ny])=>faceTemple(cell(nx,ny))).length, dBase=neighbors(def.x,def.y).filter(([nx,ny])=>faceTemple(cell(nx,ny))).length; let aMax=aBase+G.players[p].hand[RED], dMax=dBase+G.players[def.p].hand[RED]; if(aBase>dMax)return 5; if(aMax<=dBase)return -12; return aMax>dMax?2.5:-2;}
+          function warForecast(p,c,x,y){let co=compAt(x,y); if(!co)return 0; let score=0; for(let col=0;col<4;col++){let ls=co.leaders.filter(l=>l.color===col); if(ls.length<2)continue; let own=ls.find(l=>l.p===p), enemy=ls.find(l=>l.p!==p); if(!own||!enemy){score-=2;continue;} let block=key(x,y), ownStr=countSupport(own.x,own.y,col,block)+G.players[p].hand[col], enStr=countSupport(enemy.x,enemy.y,col,block)+G.players[enemy.p].hand[col]; score += ownStr>enStr?3.5:-8;} return score;}
+          function evaluateCat(p,x,y){let c=cell(x,y); if(c.leader||c.mon||c.wonder||c.treasure||c.building!==null||G.players[p].cat<=0)return null; if(c.tile===null&&!c.face)return null; let co=compAt(x,y), score=0; if(!co)return null; let own=co.leaders.filter(l=>l.p===p).length, enemy=co.leaders.filter(l=>l.p!==p).length; score+=(enemy-own)*2; if(c.tile===RED){for(const [nx,ny] of neighbors(x,y)){let l=cell(nx,ny).leader; if(!l)continue; let otherTemple=neighbors(nx,ny).some(([tx,ty])=>!(tx===x&&ty===y)&&faceTemple(cell(tx,ty))); if(!otherTemple)score += l.p===p?-20:12;}} if(c.tile!==null){let enemySame=co.leaders.some(l=>l.p!==p&&l.color===c.tile), ownSame=co.leaders.some(l=>l.p===p&&l.color===c.tile); if(enemySame)score+=3; if(ownSame)score-=4;} let before=comps().length; let old={tile:c.tile,face:c.face,cat:c.cat}; c.cat=true;c.tile=null;c.face=false; let after=comps().length; c.cat=old.cat;c.tile=old.tile;c.face=old.face; if(after>before&&enemy>own)score+=3; return score+Math.random()*0.2;}
+          function recyclePlan(p){let h=G.players[p].hand, v=G.players[p].vp, min=Math.min(...v), counts=[0,0,0,0], score=0; for(let c=0;c<4;c++){let surplus=Math.max(0,h[c]-2), ahead=Math.max(0,v[c]-min-1); let legal=0; for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(legalTile(p,c,x,y)&&evaluateTile(p,c,x,y)>1)legal++; if((surplus||ahead)&&legal<2){counts[c]=Math.min(h[c],Math.max(1,Math.min(3,surplus+Math.floor(ahead/2)))); score+=counts[c]*(1.2+ahead*.25);} } let total=counts.reduce((a,b)=>a+b,0); if(total===0){let worst=h.indexOf(Math.max(...h)); if(h[worst]>2){counts[worst]=1; score=1.5;}} return {counts,score};}
+          
+          async function placeTileAi(p,c,x,y){let err=await placeTile(p,c,x,y); if(err){log('AI illegal tile skipped: '+err);} else {log('AI plan: '+G.players[p].name+' chose '+CNAME[c]+' tile for balance/points.');}}
+          async function placeLeaderAi(p,c,x,y){let err=await placeLeader(p,c,x,y); if(err){log('AI illegal leader skipped: '+err);} else {log('AI plan: '+G.players[p].name+' chose '+CNAME[c]+' '+LEADER[c]+' placement.');}}
+          function playCatAi(p,x,y){let err=playCat(p,x,y); if(err)log('AI cat skipped: '+err); else log('AI plan: catastrophe used to reduce an opponent kingdom.');}
+          function scoreEndOfTurn(p){let cps=comps(); for(const co of cps){let own=co.leaders.filter(l=>l.p===p); if(!own.length)continue; let monColors=[]; let hasWonder=false; for(const [x,y] of co.cells){let c=cell(x,y); if(c.monumentColors)monColors.push(...c.monumentColors); if(c.wonder)hasWonder=true;} for(const l of own){let gains=monColors.filter(c=>c===l.color).length; if(gains){G.players[p].vp[l.color]+=gains; log(G.players[p].name+' gains '+gains+' '+VP[l.color]+' from monument(s).');} if(l.color===BLACK&&hasWonder){let ch=chooseLowestColor(p); G.players[p].vp[ch]++; log(G.players[p].name+' gains 1 '+VP[ch]+' from the wonder.');}}}}
+          function chooseLowestColor(p){let v=G.players[p].vp, m=Math.min(...v), idx=v.indexOf(m); if(!G.players[p].ai) flash('Wonder scoring auto-selects your current lowest VP colour: '+CNAME[idx]+'.'); return idx;}
+          function gameOver(){G.over=true; scoreEndOfTurn(G.turn); let scores=G.players.map((pl,i)=>({i,name:pl.name,vec:bestScore(pl.vp,pl.treasures)})); scores.sort((a,b)=>compareVec(b.vec,a.vec)); alert('Game over!\n'+scores.map(s=>s.name+': '+s.vec.join('/')).join('\n')); log('GAME OVER. Winner: '+scores[0].name); render();}
+          function bestScore(vp,t){let best=null; function rec(idx,left,arr){if(idx===3){arr[3]=left; let v=vp.map((v,i)=>v+arr[i]).sort((a,b)=>a-b); if(!best||compareVec(v,best)>0)best=v; return;} for(let n=0;n<=left;n++){arr[idx]=n;rec(idx+1,left-n,arr);}} rec(0,t,[0,0,0,0]); return best;}
+          function compareVec(a,b){for(let i=0;i<4;i++)if(a[i]!==b[i])return a[i]-b[i]; return 0;}
+          function eligibilityReason(a,color,x,y){if(!G||!inside(x,y))return 'Off board.'; let c=cell(x,y); if(a==='tile'){if(!emptyCell(c))return 'This space is occupied or blocked.'; if(color===BLUE&&!c.river)return 'Blue farms can only be placed on river spaces.'; if(color!==BLUE&&c.river)return CNAME[color]+' tiles cannot be placed on river spaces.'; if(!canAfford(G.turn,color))return 'You have no '+CNAME[color]+' tiles in hand.'; if(neighborKingdomCount(x,y)>2)return 'A tile cannot unite more than two kingdoms.'; return 'Eligible '+CNAME[color]+' tile placement.';} if(a==='leader'){if(!emptyCell(c))return 'Leaders require an empty space.'; if(c.river)return 'Leaders cannot be placed on river spaces.'; if(!neighbors(x,y).some(([nx,ny])=>faceTemple(cell(nx,ny))))return 'Leaders must be adjacent to a face-up temple.'; if(neighborKingdomCount(x,y)>1)return 'Leader placement cannot unite kingdoms.'; return 'Eligible '+CNAME[color]+' '+LEADER[color]+' placement.';} if(a==='cat'){if(G.players[G.turn].cat<=0)return 'You have no catastrophes left.'; if(c.leader)return 'Catastrophes cannot be played on leaders.'; if(c.mon||c.wonder||c.treasure)return 'Catastrophes cannot be played on treasures, monuments, or the wonder.'; if(c.building!==null)return 'Catastrophes cannot be played under a civilisation building.'; return 'Eligible catastrophe placement.';} if(a==='withdraw'){return (c.leader&&c.leader.p===G.turn)?'Eligible: withdraw this leader.':'Select one of your own leaders to withdraw.';} if(a==='recycleCustom')return 'Set the tile counts below, then recycle that exact mix.'; return 'This action does not use a board placement.';}
+          function eligibilityText(x=selected.x,y=selected.y){return eligibilityReason(document.getElementById('action').value,+document.getElementById('color').value,x,y);}
+          function refreshEligibilityMessage(){if(G){flash(eligibilityText()); render();}}
+          function isEligibleForCurrentAction(x,y){let a=document.getElementById('action').value, color=+document.getElementById('color').value; if(a==='tile')return legalTile(G.turn,color,x,y); if(a==='leader')return legalLeader(G.turn,color,x,y); if(a==='cat')return !playCatCheck(G.turn,x,y); if(a==='withdraw'){let c=cell(x,y);return !!(c.leader&&c.leader.p===G.turn);} return false;}
+          function playCatCheck(p,x,y){let c=cell(x,y); if(c.leader||c.mon||c.wonder||c.treasure||c.building!==null)return 'Illegal catastrophe.'; if(G.players[p].cat<=0)return 'No catastrophes left.'; return null;}
+          function coord(x,y){return String.fromCharCode(65+x)+(y+1)}
+          function resizeCanvas(){let can=board, wrap=canvasWrap, ratio=16/11; let w=wrap.clientWidth, h=wrap.clientHeight; if(w/h>ratio)w=h*ratio; else h=w/ratio; can.style.width=w+'px';can.style.height=h+'px';}
+          window.addEventListener('resize',()=>{if(G){resizeCanvas();render();}}); board.addEventListener('click',e=>{let r=board.getBoundingClientRect(), x=Math.floor((e.clientX-r.left)/r.width*W), y=Math.floor((e.clientY-r.top)/r.height*H); if(inside(x,y)){selected={x,y}; if(!G.players[G.turn].ai)flash(eligibilityText(x,y)); render();}});
+          function render(){
+           if(!G)return; const can=board, ctx=can.getContext('2d'), cw=can.width/W, ch=can.height/H; ctx.clearRect(0,0,can.width,can.height);
+           ctx.fillStyle=G.settings.advanced?'#c99c52':'#d7ae62'; ctx.fillRect(0,0,can.width,can.height);
+           drawBoardBase(ctx,cw,ch);
+           drawEligibilityOverlay(ctx,cw,ch); eachCell((c,x,y)=>drawCellContents(ctx,c,x,y,cw,ch));
+           ctx.strokeStyle='#ffeb3b';ctx.lineWidth=6;ctx.strokeRect(selected.x*cw+3,selected.y*ch+3,cw-6,ch-6);
+           syncRecycleInputs(); document.getElementById('topbar').innerHTML=statusHTML(); document.getElementById('legend').innerHTML=legendHTML(); document.getElementById('eventBox').textContent=statusFlash; document.getElementById('log').textContent=G.log.join('\n');
+          }
+          function drawBoardBase(ctx,cw,ch){
+           eachCell((c,x,y)=>{let px=x*cw,py=y*ch; ctx.fillStyle=c.river?'#7db8d7':'#d9b56c'; ctx.fillRect(px,py,cw,ch); if(c.river){ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fillRect(px+cw*.08,py+ch*.08,cw*.84,ch*.84);} if(c.shedu){ctx.fillStyle='rgba(250,238,190,.35)';ctx.fillRect(px+cw*.12,py+ch*.12,cw*.76,ch*.76);} if(c.special){ctx.strokeStyle='#ffe483';ctx.lineWidth=7;ctx.strokeRect(px+6,py+6,cw-12,ch-12);ctx.strokeStyle='#8a5b10';ctx.lineWidth=2.5;ctx.strokeRect(px+12,py+12,cw-24,ch-24);} ctx.strokeStyle='rgba(84,63,32,.65)';ctx.lineWidth=1.5;ctx.strokeRect(px,py,cw,ch); if(G.settings.showCoords){ctx.fillStyle='rgba(40,28,15,.55)';ctx.fillRect(px+3,py+3,Math.min(cw*.42,34),Math.min(ch*.20,18)); ctx.fillStyle='#fff5cf';ctx.font='bold '+(ch*.13)+'px Georgia';ctx.fillText(coord(x,y),px+6,py+Math.min(ch*.16,16));} });
+           ctx.strokeStyle='rgba(20,92,132,.55)';ctx.lineWidth=Math.min(cw,ch)*.28;ctx.lineCap='round';
+           eachCell((c,x,y)=>{if(!c.river)return; let cx=x*cw+cw/2,cy=y*ch+ch/2; for(const [nx,ny] of neighbors(x,y)){if(nx<x||ny<y)continue; if(cell(nx,ny).river){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(nx*cw+cw/2,ny*ch+ch/2);ctx.stroke();}}});
+          }
+          function drawEligibilityOverlay(ctx,cw,ch){if(!G||G.players[G.turn].ai||pendingSupport)return; let a=document.getElementById('action').value; if(!['tile','leader','cat','withdraw'].includes(a))return; eachCell((c,x,y)=>{let px=x*cw,py=y*ch; if(isEligibleForCurrentAction(x,y)){ctx.fillStyle='rgba(65,170,70,.22)';ctx.fillRect(px+3,py+3,cw-6,ch-6);} }); if(!isEligibleForCurrentAction(selected.x,selected.y)){ctx.fillStyle='rgba(190,45,35,.22)';ctx.fillRect(selected.x*cw+3,selected.y*ch+3,cw-6,ch-6);}}
+          function drawRoundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+          function drawCellContents(ctx,c,x,y,cw,ch){let px=x*cw,py=y*ch;
+           if(c.shedu){ctx.fillStyle='rgba(85,60,31,.65)';ctx.font='bold '+(ch*.20)+'px serif';ctx.fillText('Shedu',px+cw*.10,py+ch*.34);}
+           if(c.cat){ctx.fillStyle='#704126';drawRoundRect(ctx,px+8,py+8,cw-16,ch-16,8);ctx.fill();ctx.strokeStyle='#f6dfb0';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px+cw*.30,py+ch*.30);ctx.lineTo(px+cw*.70,py+ch*.70);ctx.moveTo(px+cw*.70,py+ch*.30);ctx.lineTo(px+cw*.30,py+ch*.70);ctx.stroke();}
+           if(c.face||c.wonder){ctx.fillStyle=c.wonder?'#cdbb82':'#9a8c73';drawRoundRect(ctx,px+9,py+9,cw-18,ch-18,8);ctx.fill();ctx.fillStyle='#3e3421';ctx.font='bold '+(ch*.16)+'px sans-serif';ctx.fillText(c.wonder?'Wonder':'Monument base',px+cw*.11,py+ch*.55);}
+           if(c.tile!==null&&!c.face&&!c.wonder){ctx.fillStyle=HEX[c.tile];drawRoundRect(ctx,px+10,py+10,cw-20,ch-20,9);ctx.fill();ctx.strokeStyle='#fff8';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=TEXTHEX[c.tile];ctx.font='bold '+(ch*.19)+'px sans-serif';ctx.textAlign='center';ctx.fillText(TILE_SHORT[c.tile],px+cw*.50,py+ch*.55);ctx.textAlign='left';}
+           if(c.monumentColors){ctx.fillStyle=HEX[c.monumentColors[0]];drawRoundRect(ctx,px+cw*.16,py+ch*.14,cw*.32,ch*.72,7);ctx.fill();ctx.fillStyle=HEX[c.monumentColors[1]];drawRoundRect(ctx,px+cw*.50,py+ch*.14,cw*.32,ch*.72,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(px+cw*.16,py+ch*.14,cw*.66,ch*.72);}
+           if(c.building!==null){ctx.fillStyle='#fffbe8';drawRoundRect(ctx,px+cw*.55,py+ch*.07,cw*.40,ch*.22,5);ctx.fill();ctx.strokeStyle='#5c4322';ctx.stroke();ctx.fillStyle='#2b2117';ctx.font='bold '+(ch*.12)+'px sans-serif';ctx.fillText(BUILDING[c.building].split(' ')[0],px+cw*.58,py+ch*.23);}
+           if(c.treasure){ctx.fillStyle='#f3cf4d';ctx.beginPath();ctx.arc(px+cw*.76,py+ch*.76,Math.min(cw,ch)*.13,0,7);ctx.fill();ctx.strokeStyle='#6a4d08';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#6a4d08';ctx.font='bold '+(ch*.12)+'px sans-serif';ctx.fillText('T',px+cw*.73,py+ch*.80);}
+           if(c.leader){drawLeader(ctx,c.leader,px,py,cw,ch);}
+          }
+          function drawLeader(ctx,l,px,py,cw,ch){
+           let r=Math.min(cw,ch)*.27, cx=px+cw*.50, cy=py+ch*.48; let playerBand=['#f6dc3c','#c95a4a','#5887d4','#5bb56c'][l.p]||'#ffffff';
+           ctx.save();ctx.translate(cx,cy);ctx.fillStyle=playerBand;ctx.strokeStyle='#fff7d3';ctx.lineWidth=3;
+           if(l.p===0){ctx.beginPath();ctx.arc(0,0,r+12,0,7);ctx.fill();ctx.stroke();}
+           else if(l.p===1){drawRoundRect(ctx,-(r+12),-(r+12),(r+12)*2,(r+12)*2,10);ctx.fill();ctx.stroke();}
+           else if(l.p===2){ctx.beginPath();ctx.moveTo(0,-(r+14));ctx.lineTo(r+14,0);ctx.lineTo(0,r+14);ctx.lineTo(-(r+14),0);ctx.closePath();ctx.fill();ctx.stroke();}
+           else {ctx.beginPath();for(let i=0;i<6;i++){let a=-Math.PI/2+i*Math.PI/3,rr=r+13,x=Math.cos(a)*rr,y=Math.sin(a)*rr;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();ctx.fill();ctx.stroke();}
+           ctx.fillStyle=HEX[l.color];ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();ctx.strokeStyle='#ffffff';ctx.lineWidth=2.5;ctx.stroke();
+           ctx.fillStyle=MARK_FILL[l.p]||'#fff';ctx.font='bold '+(ch*.18)+'px Trebuchet MS';ctx.textAlign='center';ctx.fillText(MARK[l.p],0,-ch*.01);
+           ctx.fillStyle='#fff7d1';drawRoundRect(ctx,-r*.95,r*.52,r*1.9,ch*.17,5);ctx.fill();ctx.strokeStyle='rgba(60,35,12,.65)';ctx.lineWidth=1;ctx.stroke();
+           ctx.fillStyle='#3a240f';ctx.font='bold '+(ch*.085)+'px Georgia';ctx.fillText(SIGIL[l.p],0,r*.76+ch*.02);ctx.restore();ctx.textAlign='left';
+          }
+          function statusHTML(){let p=G.players[G.turn]; let s='<b>Turn:</b> '+p.name+' &nbsp; <b>Actions left:</b> '+G.actions+' &nbsp; <b>Selected:</b> '+coord(selected.x,selected.y)+'<br>'; s+='<b>Your hand:</b> '+handText(0)+'<br>'; s+='<b>Your VP:</b> '+G.players[0].vp.map((v,i)=>CNAME[i]+' '+VP[i]+': '+v).join(' | ')+' &nbsp; <b>Treasures:</b> '+G.players[0].treasures+' &nbsp; <b>Catastrophes:</b> '+G.players[0].cat+'<br>'; s+='<span class="muted">Bag: '+G.bag.reduce((a,b)=>a+b,0)+' | Board treasures: '+boardTreasures()+' | '+optionSummary()+'</span>'; return s;}
+          function optionSummary(){return (G.settings.advanced?'Advanced board':'Standard board')+'; '+(G.settings.buildings?'Buildings on':'Buildings off')+'; '+(G.settings.english?'English variant on':'English variant off')+'; '+(G.settings.wonder?'Wonder on':'Wonder off')+'; AI '+G.aiLevel;}
+          function legendHTML(){if(!G)return ''; let s='<b>Leader legend:</b> '; for(let i=0;i<G.players.length;i++)s+='<span class="pill"><span class="sig">'+MARK[i]+'</span>'+SIGIL[i]+' = '+G.players[i].name+'</span>'; s+=' <b>Colours:</b> '; for(let c=0;c<4;c++)s+='<span class="pill"><span class="sw" style="background:'+HEX[c]+'"></span>'+CNAME[c]+': '+TILE[c]+' / '+LEADER[c]+' / '+VP[c]+'</span>'; if(G.settings.buildings)s+=' <span class="pill">Buildings are labelled Palace/Library/Granary/Market Hall, not “B”.</span>'; return s;}
+          function saveGame(){localStorage.setItem('tnePersonalSave',JSON.stringify(G));alert('Saved.');}
+          function loadGame(){let s=localStorage.getItem('tnePersonalSave');if(!s){alert('No save found.');return;} G=JSON.parse(s); document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='flex'; resizeCanvas(); render(); flash('Loaded saved game.'); if(G.players[G.turn].ai)setTimeout(aiTurn,650);}
+          </script>
+          </body>
+          </html>
+
+          EOF
+
+      - name: Download Gradle
+        run: |
+          curl -L -o gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle.zip
+
+      - name: Build debug APK
+        run: ./gradle-8.7/bin/gradle --no-daemon assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tigris-Personal-AI-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
